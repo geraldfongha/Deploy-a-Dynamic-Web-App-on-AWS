@@ -1,5 +1,7 @@
-# Deploy-a-Dynamic-Web-App-on-AWS
-Hosting a dynamic Web App on AWS cloud with an EC2 instance while using flyway to migrate SQL data to MySQL RDS database. 
+
+# Dynamic Website Hosting on AWS
+
+This project demonstrates the deployment and hosting of a dynamic website on AWS, utilizing various services and components to ensure high availability, scalability, security, and fault tolerance.
 
 ## Architecture Overview
 
@@ -26,104 +28,115 @@ The deployment of this infrastructure is automated using scripts and configurati
 
 - **Reference Diagram**: A visual representation of the AWS infrastructure and its components.
 - **Deployment Scripts**: Scripts to provision and configure the necessary AWS resources.
-Below is the application code used to complete this task.
-#Update ec2 server
+
+#!/bin/bash
+
+S3_URI=s3://fongha-sql-files/V1__shopwise.sql
+RDS_ENDPOINT=dev-rds-db.csl1kxrse78s.us-east-1.rds.amazonaws.com
+RDS_DB_NAME=applicationdb
+RDS_DB_USERNAME=fongha
+RDS_DB_PASSWORD=fonyam1983
+
+# Update all packages
 sudo yum update -y
-#Install Apache
-sudo yum install httpd -y
+
+# Download and extract Flyway
+sudo wget -qO- https://download.red-gate.com/maven/release/com/redgate/flyway/flyway-commandline/10.11.1/flyway-commandline-10.11.1-linux-x64.tar.gz | tar -xvz && sudo ln -s `pwd`/flyway-10.11.1/flyway /usr/local/bin
+# Create a symbolic link to make Flyway accessible globally
+sudo ln -s $(pwd)/flyway-10.9.1/flyway /usr/local/bin
+# Create the SQL directory for migrations
+sudo mkdir sql
+
+# Download the migration SQL script from AWS S3
+sudo aws s3 cp "$S3_URI" sql/
+
+# Run Flyway migration
+flyway -url=jdbc:mysql://"$RDS_ENDPOINT":3306/"$RDS_DB_NAME" \
+  -user="$RDS_DB_USERNAME" \
+  -password="$RDS_DB_PASSWORD" \
+  -locations=filesystem:sql \
+  migrate
+
+
+
+# This command indicates that the script should be interpreted and executed using the Bash shell
+#!/bin/bash
+
+# This command updates all the packages on the server to their latest versions
+sudo yum update -y
+
+# This series of commands installs the Apache web server, enables it to start on boot, and then starts the server immediately
+sudo yum install -y httpd
+sudo systemctl enable httpd 
 sudo systemctl start httpd
-sudo systemctl enable httpd
-#Install PHP version 8
-sudo yum install php -y
-#Install php extension
-sudo yum install php php-fpm php-mysqlnd php-bcmath php-ctype php-fileinfo php-json php-mbstring php-openssl php-pdo php-gd php-tokenizer php-xml -y
-#Install the MySQL Community repository
-sudo wget https://dev.mysql.com/get/mysql80-community-release-el9-1.noarch.rpm
-#install MySQL Version 8
-sudo dnf install mysql80-community-release-el9-1.noarch.rpm -y
-dnf repolist enabled | grep "mysql.-community." -y
-sudo dnf install mysql-community-server -y
-#Start the MySQL server
+
+# This command installs PHP along with several necessary extensions for the application to run
+sudo dnf install -y \
+php \
+php-pdo \
+php-openssl \
+php-mbstring \
+php-exif \
+php-fileinfo \
+php-xml \
+php-ctype \
+php-json \
+php-tokenizer \
+php-curl \
+php-cli \
+php-fpm \
+php-mysqlnd \
+php-bcmath \
+php-gd \
+php-cgi \
+php-gettext \
+php-intl \
+php-zip
+
+## These commands Installs MySQL version 8
+# Install the MySQL Community repository
+sudo wget https://dev.mysql.com/get/mysql80-community-release-el9-1.noarch.rpm 
+#
+# Install the MySQL server
+sudo dnf install -y mysql80-community-release-el9-1.noarch.rpm
+sudo rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2023
+dnf repolist enabled | grep "mysql.*-community.*"
+sudo dnf install -y mysql-community-server 
+#
+# Start and enable the MySQL server
 sudo systemctl start mysqld
-sudo mysql -V
-#Enable PHP_CURL Module
-sudo yum install php-curl -y
-#To edit the php.ini file
-sudo sed -i 's/^max_execution_time = .*/max_execution_time = 300/' /etc/php.ini
-#USE THIS CODE TO SEARCH FOR THE PHP.INI FILE#
-cat php.ini | grep memory_limit
-cat php.ini | grep max-execution_time
-#Enable mod_rewrite on ec2 linux, add apache to group, and restart server
+sudo systemctl enable mysqld
+
+# This command enables the 'mod_rewrite' module in Apache on an EC2 Linux instance. It allows the use of .htaccess files for URL rewriting and other directives in the '/var/www/html' directory
 sudo sed -i '/<Directory "\/var\/www\/html">/,/<\/Directory>/ s/AllowOverride None/AllowOverride All/' /etc/httpd/conf/httpd.conf
-sudo service httpd restart
-#download the nest zip from s3 to the html derectory on the ec2 instance
-sudo aws s3 sync s3://kachi-nest-web-files /var/www/html
-#unzip the nest zip folder
+
+# Environment Veriable
+S3_BUCKET_NAME=fongha-project-web-files
+
+# This command downloads the contents of the specified S3 bucket to the '/var/www/html' directory on the EC2 instance
+sudo aws s3 sync s3://"$S3_BUCKET_NAME" /var/www/html
+
+# This command changes the current working directory to '/var/www/html', which is the standard directory for hosting web pages on a Unix-based server
 cd /var/www/html
-sudo unzip nest-app.zip
-#move all the files and folder from the nest-app directory to the html directory
-sudo mv nest-app/* /var/www/html
-#move all the hidden files from the nest-app directory to the html directory
-sudo mv nest-app/.editorconfig /var/www/html
-sudo mv nest-app/.env /var/www/html
-sudo mv nest-app/.env.example /var/www/html
-sudo mv nest-app/.gitattributes /var/www/html
-sudo mv nest-app/.gitignore /var/www/html
-sudo mv nest-app/.htaccess /var/www/html
-#delete the nest and nest.zip folder
-sudo rm -rf nest-app nest-app.zip
-#Set permissions 777 for the '/var/www/html' directory and the storage/' directory
+
+# This command is used to extract the contents of the application code zip file that was previously downloaded from the S3 bucket
+sudo unzip shopwise.zip
+
+# This command recursively copies all files, including hidden ones, from the 'shopwise' directory to the '/var/www/html/'
+sudo cp -R shopwise/. /var/www/html/
+
+# This command permanently deletes the 'shopwise' directory and the 'shopwise.zip' file.
+sudo rm -rf shopwise shopwise.zip
+
+# This command set permissions 777 for the '/var/www/html' directory and the 'storage/' directory
 sudo chmod -R 777 /var/www/html
 sudo chmod -R 777 storage/
-#Restart Apache server
-sudo service httpd restart
-GO TO HOME DIRECTORY
-MIGRATING SGQL DATA TO RDS WITH FLYWAY
-1.	Create an S3 bucket and upload the SQL (Script) file.
-2.	S3Role
-3.	Ec2 endpoint connect
-#Download fly
-wget -qO- https://repo1.maven.org/maven2/org/flywaydb/flyway-commandline/9.22.3/flyway-commandline-9.22.3-linux-x64.tar.gz | tar -xvz && sudo ln -s pwd/flyway-9.22.3/flyway /usr/local/bin
-cd flyway-9.22.3
-NOTE: To run the flyway commands you must be in the flyway directory
-#delete flyway sql directory
-rm -rf sql
-#create own sql directory
-mkdir sql
-#copy sql file from S3 to sql directory in flyway
-aws s3 cp s3://s3://fongha-sql-files/V1__shopwise.sql
-#Migrates data to database
-flyway -url=jdbc:mysql://kachi-rds-db.cso3n7l0ywqv.eu-west-2.rds.amazonaws.com:3306/applicationdb \
--user=cach \
--password=Ebunoluwa \
--locations=filesystem:sql \
-migrate
-#TO EDIT THE .env FILE
-cd /var/www/html
-nano .env
-i. APP_URL=enter your domain name
-ii. DB_HOST=enter your RDS Endpoint
-iii. DB_DATABASE=enter your RDS database name
-iv. DB_USERNAME=enter your RDS username name
-v. DB_PASSWORD=enter your RDS database password 
--Create target group
--Create Application Load Balance
--Create Route 53
--Create HTTPS listerner
-#To Edit the AppServiceProvider.Phpfile
-cd /var/www/html
-nano .env
-Ls
-Cd app
-Ls
-Cd Providers
-Ls
-Type: sudo vi AppServiceProvider.php
-Copy and paste:
-if (env('APP_ENV') === 'production') {\Illuminate\Support\Facades\URL::forceScheme('https');}
-Create Launch template
-Create Auto Scaling Group
 
+# This command will open th vi editor and allow you to edit the .env file to add your database credentials 
+sudo vi .env
+
+# This command will restart the Apache server
+sudo service httpd restart
 
 ## Usage
 
