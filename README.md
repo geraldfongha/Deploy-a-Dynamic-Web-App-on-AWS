@@ -31,12 +31,6 @@ The deployment of this infrastructure is automated using scripts and configurati
 
 #!/bin/bash
 
-S3_URI=s3://fongha-sql-files/V1__shopwise.sql
-RDS_ENDPOINT=dev-rds-db.csl1kxrse78s.us-east-1.rds.amazonaws.com
-RDS_DB_NAME=applicationdb
-RDS_DB_USERNAME=fongha
-RDS_DB_PASSWORD=fonyam1983
-
 # Update all packages
 sudo yum update -y
 
